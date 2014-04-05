@@ -1,0 +1,8 @@
+Rat Trap Parts
+==============
+
+The name of the game is illustrative of the gameplay itself.
+Generate new words from a word by making an anagram of it and adding any one
+letter of your choice.  You may also split a word into several as part of the
+same process as long as each new word is at least 3 characters long.
+Words can never be repeated, even in different forms.
