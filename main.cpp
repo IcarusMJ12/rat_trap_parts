@@ -130,6 +130,10 @@ class rat_trap_parts {
 			return stems;
 		}
 
+		if (!spell.spell(str.c_str())) {
+			return stems;
+		}
+
 		bool should_hunspell = false;
 		strcpy(literal_arr, literal.c_str());
 		// morph the str to base form first
@@ -233,7 +237,6 @@ class rat_trap_parts {
 
 		paginate(prior, prior_strings);
 		paginate(current, current_strings);
-		fprintf(stderr, "%s", "ok here");
 
 		char line_buffer[MAX_COLS + 1];
 		for (int i = 0; i < MAX_COLS; i++) line_buffer[i] = ' ';
