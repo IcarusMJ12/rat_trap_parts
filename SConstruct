@@ -15,7 +15,9 @@ cflags = cflags_debug if mode == 'debug' else cflags_release
 env = Environment(
 		CXX = 'clang++',
 		CCFLAGS = cflags,
-		CXXFLAGS = cflags + ' -std=c++11 -stdlib=libc++ -Wall',
+		CXXFLAGS = cflags + ' -std=c++11 -stdlib=libc++ -Wall -Werror ' +
+			# ...and because WordNet is so ghetto...
+			'-Wno-deprecated-writable-strings',
 		LINKFLAGS = ['-stdlib=libc++'],
 		CPPPATH = ['.', '/opt/local/include']
 		)
