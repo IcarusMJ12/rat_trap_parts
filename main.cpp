@@ -27,11 +27,17 @@
 #define CURRENT_END 21
 #define ERROR_ROW 22
 
-static const int BLANK_ROWS[2] = {1, 17};
-
 #define SCORE_STR "Score:"
 #define FINAL_SCORE_STR "Your final score is "
+#define PRIOR_WORDS_STR "Prior words:"
+#define CURRENT_WORDS_STR "Current words:"
 #define PROMPT_STR ">"
+
+const static std::string blank_row(MAX_COLS, ' ');
+const static std::string prior_words_row(std::string(PRIOR_WORDS_STR) +
+		std::string(MAX_COLS - strlen(PRIOR_WORDS_STR), ' '));
+const static std::string current_words_row(std::string(CURRENT_WORDS_STR) +
+		std::string(MAX_COLS - strlen(CURRENT_WORDS_STR), ' '));
 
 using namespace boost::algorithm;
 
@@ -49,20 +55,20 @@ void rmvprintw(int row, int col, char const* str) {
 }
 
 void print_err(char const* fmt, ...) {
-	char line_buffer[MAX_COLS + 1];
+	static char line_buffer[MAX_COLS + 1];
 
 	va_list args;
 	va_start(args, fmt);
 
-	vsnprintf(line_buffer, MAX_COLS, fmt, args);
+	int count = vsnprintf(line_buffer, MAX_COLS, fmt, args);
+	memset(line_buffer + count, ' ', MAX_COLS - count);
+	line_buffer[MAX_COLS] = '\0';
 	rmvprintw(ERROR_ROW, 0, line_buffer);
 
 	va_end(args);
 }
 
 void print_blank(int row=ERROR_ROW) {
-	const static std::string blank_row(MAX_COLS, ' ');
-
 	rmvprintw(row, 0, blank_row.c_str());
 }
 
@@ -200,7 +206,21 @@ class rat_trap_parts {
 	};
 
 	void help() {
-		//TODO
+		char readme[81*24];
+		FILE* f = fopen("README", "r");
+		if (f == nullptr) {
+			throw std::runtime_error("Couldn't read README.");
+		}
+		int read = fread(readme, 1, sizeof(readme), f);
+		assert(read > 0);
+		clear();
+		printw(readme);
+		print_err("Press any key to return to the game.");
+		refresh();
+		noecho();
+		getch();
+		echo();
+		clear();
 	}
 
 	void setup() {
@@ -254,11 +274,12 @@ class rat_trap_parts {
 		paginate(prior, prior_strings);
 		paginate(current, current_strings);
 
-		print_blank();
+		print_err("If confused, press h<Enter>");
 		while (true) {
 			rmvprintw(SCORE_ROW, 0, SCORE_STR);
 			rmvprintw(PROMPT_ROW, 0, PROMPT_STR);
-			for (auto const i : BLANK_ROWS) print_blank(i);
+			rmvprintw(1, 0, prior_words_row.c_str());
+			rmvprintw(17, 0, current_words_row.c_str());
 			snprintf(line_buffer, MAX_COLS, " %lu", score);
 			mvprintw(SCORE_ROW, sizeof(SCORE_STR), line_buffer);
 			if (prior_strings.size() > 0) {
@@ -302,7 +323,7 @@ class rat_trap_parts {
 				}
 				snprintf(line_buffer, MAX_COLS, "Your final score is %lu", score);
 				mvprintw(SCORE_ROW, 0, line_buffer);
-				mvprintw(PROMPT_ROW, 0, "Press any key to continue...");
+				print_err("Press any key to continue...");
 				refresh();
 				noecho();
 				getch();
@@ -310,7 +331,7 @@ class rat_trap_parts {
 				return;
 			} else if (input == "?" || input == "h") {
 				help();
-				clear();
+				print_blank();
 				continue;
 			}
 
