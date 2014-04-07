@@ -1,21 +1,21 @@
+#include <algorithm>
+#include <array>
 #include <cassert>
 #include <exception>
-
-#include <algorithm>
 #include <random>
-
-#include <array>
 #include <set>
 #include <string>
 #include <vector>
+
+#include <boost/algorithm/string.hpp>
 
 #include <ncurses.h>
 #include <hunspell/hunspell.hxx> // for stem
 #include <wn.h> // for in_wn and morphword
 
 //TODO: put this in a config like a decent human being
-#define HUNSPELL_AFF "/opt/local/share/hunspell/en_US.aff"
-#define HUNSPELL_DIC "/opt/local/share/hunspell/en_US.dic"
+#define HUNSPELL_AFF "en_US.aff"
+#define HUNSPELL_DIC "en_US.dic"
 
 #define MAX_ROWS 24
 #define MAX_COLS 80
@@ -33,7 +33,38 @@ static const int BLANK_ROWS[2] = {1, 17};
 #define FINAL_SCORE_STR "Your final score is "
 #define PROMPT_STR ">"
 
+using namespace boost::algorithm;
+
 static Hunspell spell(HUNSPELL_AFF, HUNSPELL_DIC);
+
+bool lowercase_and_validate(std::string& str) {
+	to_lower(str);
+	return std::all_of(str.begin(), str.end(), isalpha);
+}
+
+void rmvprintw(int row, int col, char const* str) {
+	attron(A_REVERSE);
+	mvprintw(row, col, str);
+	attroff(A_REVERSE);
+}
+
+void print_err(char const* fmt, ...) {
+	char line_buffer[MAX_COLS + 1];
+
+	va_list args;
+	va_start(args, fmt);
+
+	vsnprintf(line_buffer, MAX_COLS, fmt, args);
+	rmvprintw(ERROR_ROW, 0, line_buffer);
+
+	va_end(args);
+}
+
+void print_blank(int row=ERROR_ROW) {
+	const static std::string blank_row(MAX_COLS, ' ');
+
+	rmvprintw(row, 0, blank_row.c_str());
+}
 
 struct word {
 	std::string literal;
@@ -48,10 +79,7 @@ struct word {
 	}
 
 	bool is_one_less_than(std::vector<std::string const>& other) const {
-		std::string o;
-		for (auto const& i : other) {
-			o += i;
-		}
+		std::string o = join(other, "");
 
 		// is length mismatched?
 		if (o.size() - sorted.size() != 1) {
@@ -121,24 +149,21 @@ class rat_trap_parts {
 		char literal_arr[128];
 
 		if (str.size() >= sizeof(literal_arr)) {
-			return stems;
+			throw std::runtime_error("Input length exceeded.");
 		}
 
 		std::string literal = str;
-
-		if (!lowercase_and_validate(literal)) {
-			return stems;
-		}
-
-		if (!spell.spell(str.c_str())) {
+		if (!lowercase_and_validate(literal) || !spell.spell(str.c_str())) {
 			return stems;
 		}
 
 		bool should_hunspell = false;
+
 		strcpy(literal_arr, literal.c_str());
 		// morph the str to base form first
 		for (int i = NOUN; i <= ADV; i++) {
 			char* buf = morphword(literal_arr, i);
+			// if already base form, be sure to check with hunspell before adding
 			if (buf == nullptr) {
 				if (in_wn(literal_arr, i)) {
 					should_hunspell = true;
@@ -147,6 +172,7 @@ class rat_trap_parts {
 			}
 			stems.emplace(buf);
 		}
+
 		// then try stemming it
 		if (should_hunspell) {
 			char** stems_arr;
@@ -173,16 +199,6 @@ class rat_trap_parts {
 		}
 	};
 
-	bool lowercase_and_validate(std::string &str) {
-		for (auto &c : str) {
-			c = tolower(c);
-			if (c < 'a' || c > 'z') {
-				return false;
-			}
-		}
-		return true;
-	}
-
 	void help() {
 		//TODO
 	}
@@ -190,11 +206,9 @@ class rat_trap_parts {
 	void setup() {
 		while(current.size() == 0) {
 			clear();
-			attron(A_REVERSE);
-			mvprintw(21, 0, "Enter a 3-letter word to start with.");
-			mvprintw(22, 0, "'r' or 'random' for random start.");
-			mvprintw(PROMPT_ROW, 0, PROMPT_STR);
-			attroff(A_REVERSE);
+			rmvprintw(21, 0, "Enter a 3-letter word to start with.");
+			rmvprintw(22, 0, "'r' or 'random' for random start.");
+			rmvprintw(PROMPT_ROW, 0, PROMPT_STR);
 			refresh();
 			mvgetnstr(PROMPT_ROW, 2, input_arr, sizeof(input_arr));
 			std::string str(input_arr);
@@ -232,26 +246,19 @@ class rat_trap_parts {
 	}
 
 	void play() {
+		char line_buffer[MAX_COLS + 1];
+
 		setup();
 		clear();
 
 		paginate(prior, prior_strings);
 		paginate(current, current_strings);
 
-		char line_buffer[MAX_COLS + 1];
-		for (int i = 0; i < MAX_COLS; i++) line_buffer[i] = ' ';
-		line_buffer[MAX_COLS] = '\0';
-		attron(A_REVERSE);
-		mvprintw(ERROR_ROW, 0, line_buffer);
-		attroff(A_REVERSE);
+		print_blank();
 		while (true) {
-			for (int i = 0; i < MAX_COLS; i++) line_buffer[i] = ' ';
-			line_buffer[MAX_COLS] = '\0';
-			attron(A_REVERSE);
-			mvprintw(SCORE_ROW, 0, SCORE_STR);
-			mvprintw(PROMPT_ROW, 0, PROMPT_STR);
-			for (auto const i : BLANK_ROWS) mvprintw(i, 0, line_buffer);
-			attroff(A_REVERSE);
+			rmvprintw(SCORE_ROW, 0, SCORE_STR);
+			rmvprintw(PROMPT_ROW, 0, PROMPT_STR);
+			for (auto const i : BLANK_ROWS) print_blank(i);
 			snprintf(line_buffer, MAX_COLS, " %lu", score);
 			mvprintw(SCORE_ROW, sizeof(SCORE_STR), line_buffer);
 			if (prior_strings.size() > 0) {
@@ -269,11 +276,7 @@ class rat_trap_parts {
 			refresh();
 			mvgetnstr(23, 1, input_arr, sizeof(input_arr));
 			clear();
-			for (int i = 0; i < MAX_COLS; i++) line_buffer[i] = ' ';
-			line_buffer[MAX_COLS] = '\0';
-			attron(A_REVERSE);
-			mvprintw(ERROR_ROW, 0, line_buffer);
-			attroff(A_REVERSE);
+			print_blank();
 			std::string input(input_arr);
 			for (auto& c : input) {
 				c = tolower(c);
@@ -318,11 +321,7 @@ class rat_trap_parts {
 			token = strsep(&start, " ");
 			std::string chosen(token);
 			if (current.count(chosen) == 0) {
-				attron(A_REVERSE);
-				snprintf(line_buffer, MAX_COLS, "'%s' is not a current word.",
-						chosen.c_str());
-				mvprintw(ERROR_ROW, 0, line_buffer);
-				attroff(A_REVERSE);
+				print_err("'%s' is not a current word.", chosen.c_str());
 				continue;
 			}
 
@@ -331,21 +330,14 @@ class rat_trap_parts {
 			std::vector<std::string const> candidates;
 			bool entry_invalid = false;
 			if (start == nullptr) {
-				attron(A_REVERSE);
-				snprintf(line_buffer, MAX_COLS, "Need at least one word...");
-				mvprintw(ERROR_ROW, 0, line_buffer);
-				attroff(A_REVERSE);
+				print_err("Need at least one word...");
 				continue;
 			}
 
 			while(start != nullptr) {
 				std::string str(strsep(&start, " "));
 				if (!lowercase_and_validate(str) || str.size() < 3) {
-					attron(A_REVERSE);
-					snprintf(line_buffer, MAX_COLS, "'%s' is not alpha/too short",
-							str.c_str());
-					mvprintw(ERROR_ROW, 0, line_buffer);
-					attroff(A_REVERSE);
+					print_err("'%s' is not alpha/too short", str.c_str());
 					entry_invalid = true;
 					break;
 				}
@@ -353,17 +345,18 @@ class rat_trap_parts {
 			}
 			if (entry_invalid) continue;
 
+			if (!word(chosen).is_one_less_than(candidates)) {
+				print_err("Not a valid anagram + extra letter");
+				continue;
+			}
+
 			int score_this_round = 0;
 			std::set<std::string const> stems_this_round;
 			for (auto const& candidate : candidates) {
 				std::set<std::string const> stems = stems_from_str(candidate);
 				// is this even a real word?
 				if (stems.size() == 0) {
-					attron(A_REVERSE);
-					snprintf(line_buffer, MAX_COLS, "'%s' isn't a valid word",
-							candidate.c_str());
-					mvprintw(ERROR_ROW, 0, line_buffer);
-					attroff(A_REVERSE);
+					print_err("'%s' isn't a valid word", candidate.c_str());
 					entry_invalid = true;
 					break;
 				}
@@ -377,11 +370,7 @@ class rat_trap_parts {
 							was_scored = true;
 						}
 					} else {
-						attron(A_REVERSE);
-						snprintf(line_buffer, MAX_COLS, "'%s' already used previously",
-								candidate.c_str());
-						mvprintw(ERROR_ROW, 0, line_buffer);
-						attroff(A_REVERSE);
+						print_err("'%s' already used previously", candidate.c_str());
 						entry_invalid = true;
 						break;
 					}
