@@ -226,8 +226,12 @@ class rat_trap_parts {
 	void setup() {
 		while(current.size() == 0) {
 			clear();
+			mvprintw(3, MAX_COLS/2 - sizeof("welcome to")/2, "welcome to");
+			mvprintw(5, MAX_COLS/2 - sizeof("R A T")/2, "R A T");
+			mvprintw(6, MAX_COLS/2 - sizeof("T R A P")/2, "T R A P");
+			mvprintw(7, MAX_COLS/2 - sizeof("P A R T S")/2, "P A R T S");
 			rmvprintw(21, 0, "Enter a 3-letter word to start with.");
-			rmvprintw(22, 0, "'r' or 'random' for random start.");
+			rmvprintw(22, 0, "'r' or 'random' for random start, 'h' for help.");
 			rmvprintw(PROMPT_ROW, 0, PROMPT_STR);
 			refresh();
 			mvgetnstr(PROMPT_ROW, 2, input_arr, sizeof(input_arr));
@@ -260,6 +264,8 @@ class rat_trap_parts {
 					std::set<std::string const> stems = stems_from_str(choice);
 					used_stems.insert(stems.begin(), stems.end());
 					return;
+				} else if (str == "h" || str == "help") {
+					help();
 				}
 			}
 		}
