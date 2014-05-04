@@ -5,6 +5,7 @@
 #include <random>
 #include <set>
 #include <string>
+#include <sstream>
 #include <vector>
 
 #include <boost/algorithm/string.hpp>
@@ -150,6 +151,8 @@ class rat_trap_parts {
 	std::set<const std::string> used_stems;
 	unsigned long score;
 
+	std::vector<std::string const> readme_lines;
+
 	std::set<std::string const> stems_from_str(std::string const& str) {
 		std::set<std::string const> stems;
 		char literal_arr[128];
@@ -206,15 +209,18 @@ class rat_trap_parts {
 	};
 
 	void help() {
-		char readme[81*24];
-		FILE* f = fopen("README", "r");
-		if (f == nullptr) {
-			throw std::runtime_error("Couldn't read README.");
-		}
-		int read = fread(readme, 1, sizeof(readme), f);
-		assert(read > 0);
 		clear();
-		printw(readme);
+		for (int i = 0, j = 0; i < readme_lines.size(); i++, j++) {
+			if (i != readme_lines.size() - 1 &&
+					readme_lines[i+1].size() == readme_lines[i].size() &&
+					std::all_of(readme_lines[i+1].begin(), readme_lines[i+1].end(),
+						[] (char c) { return c == '='; })) {
+				rmvprintw(j, 0, readme_lines[i].c_str());
+				i++;
+			} else {
+				mvprintw(j, 0, readme_lines[i].c_str());
+			}
+		}
 		print_err("Press any key to return to the game.");
 		refresh();
 		noecho();
@@ -224,6 +230,21 @@ class rat_trap_parts {
 	}
 
 	void setup() {
+		// initialize readme
+		char readme[81*40];
+		FILE* f = fopen("README.md", "r");
+		if (f == nullptr) {
+			throw std::runtime_error("Couldn't read README.md.");
+		}
+		int read = fread(readme, 1, sizeof(readme), f);
+		assert(read > 0);
+		assert(read < 81*40);
+		std::stringstream ss(readme);
+		std::string line;
+		while(std::getline(ss, line, '\n')) {
+			readme_lines.push_back(line);
+		}
+
 		while(current.size() == 0) {
 			clear();
 			mvprintw(3, MAX_COLS/2 - sizeof("welcome to")/2, "welcome to");
