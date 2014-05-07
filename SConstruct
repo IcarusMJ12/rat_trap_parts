@@ -24,7 +24,7 @@ env = Environment(
 
 env['ENV']['PATH'] = os.environ['PATH']
 
-src = [ 'main.cpp' ]
+src = [ 'main.cpp', 'rat_trap_parts.cpp', 'ncurses_wrappers.cpp' ]
 
 Default(env.Program('rat_trap_parts', src,
 			LIBS=['WN', 'hunspell-1.3', 'ncurses'], LIBPATH='/opt/local/lib'))
